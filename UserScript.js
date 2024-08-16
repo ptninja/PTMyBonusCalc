@@ -1,22 +1,17 @@
 // ==UserScript==
 // @name         PT站点魔力计算器
-// @namespace    http://tampermonkey.net/
-// @version      2.0.1
+// @namespace    https://github.com/neoblackxt/PTMyBonusCalc
+// @version      2.0.2
 // @description  在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。
 // @author       neoblackxt, LaneLau
 // @require      https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js
 // @require      https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js
-// @match        *://*.avgv.cc/torrents*
-// @match        *://*.avgv.cc/AV*
-// @match        *://*.avgv.cc/GV*
-// @match        *://*.avgv.cc/LES*
-// @match        *://*.avgv.cc/movie*
-// @match        *://*.avgv.cc/teleplay*
 // @match        *://*.beitai.pt/torrents*
 // @match        *://*.pttime.org/torrents*
 // @match        *://*.ptsbao.club/torrents*
 // @match        *://*.pthome.net/torrents*
 // @match        *://kp.m-team.cc/*
+// @match        *://zp.m-team.io/*
 // @match        *://*.hddolby.com/torrents*
 // @match        *://*.leaguehd.com/torrents*
 // @match        *://*.hdhome.org/torrents*
@@ -36,19 +31,17 @@
 // @match        *://pt.btschool.club/torrents*
 // @match        *://*.1ptba.com/torrents*
 // @match        *://www.oshen.win/torrents*
-// @match        *://hdmayi.com/torrents*
-// @match        *://pt.msg.vg/torrents*
-// @match        *://*/mybonus.php*
+// @match        *://*/mybonus*
 // @license      GPL License
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        window.onurlchange
 // ==/UserScript==
 
 function run() {
     var $ = jQuery;
 
-    let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0]
-    let isMybonusPage = window.location.toString().indexOf("mybonus.php")!=-1
+
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
     let N0 = GM_getValue(host + ".N0");
@@ -57,7 +50,7 @@ function run() {
     if(!(T0 && N0 && B0 &&L)){
         argsReady = false
         if(!isMybonusPage){
-            alert("未找到魔力值参数,请打开魔力值系统说明获取（/mybonus.php）");
+            alert("未找到魔力值参数,请打开魔力值系统说明获取（/mybonus）");
         }
     }
     if (isMybonusPage){
@@ -71,7 +64,13 @@ function run() {
         GM_setValue(host + ".B0",B0);
         GM_setValue(host + ".L",L);
 
-        let A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
+        let A = isMTeam?0:parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
+        debugger
+
+
+        let B = isMTeam?parseFloat($("td:contains('基本獎勵')+td+td")[0].innerText):0
+        // FIXME: B的上限是B0,怎么可能出现B>=B0的情况
+        B = B>=B0?B0*0.98:B
 
         if(!argsReady){
             if(T0 && N0 && B0 && L){
@@ -85,12 +84,20 @@ function run() {
             return B0*(2/Math.PI)*Math.atan(A/L)
         }
 
+        function calcAbyB(B){
+            //从B值反推A值
+            return Math.tan(B/B0/(2/Math.PI))*L
+        }
+
+        let spot = isMTeam?[calcAbyB(B),B]:[A,calcB(A)]
+
         let data = []
         for (let i=0; i<25*L; i=i+L/4){
             data.push([i,calcB(i)])
         }
 
-        $("table+h1").before('<div id="main" style="width: 600px;height:400px; margin:auto;"></div>')
+        let insertPos = isMTeam?$("ul+table"):$("table+h1")
+        insertPos.before('<div id="main" style="width: 600px;height:400px; margin:auto;"></div>')
 
         var myChart = echarts.init(document.getElementById('main'));
         // 指定图表的配置项和数据
@@ -133,7 +140,7 @@ function run() {
                 },
                 {
                     type: 'line',
-                    data:[[A,calcB(A)]],
+                    data:[spot],
                     symbolSize: 6
                 }
             ]
@@ -185,29 +192,122 @@ function run() {
         }
     }
 
-    var i_T, i_S, i_N
-    $('.torrents:last-of-type>tbody>tr').each(function (row) {
-        var $this = $(this);
-        if (row == 0) {
-            $this.children('td').each(function (col) {
-                if ($(this).find('img.time').length) {
-                    i_T = col
-                } else if ($(this).find('img.size').length) {
-                    i_S = col
-                } else if ($(this).find('img.seeders').length) {
-                    i_N = col
+
+
+    function addDataColGeneral(){
+        var i_T, i_S, i_N
+        $(seedTableSelector).each(function (row) {
+            var $this = $(this);
+            if (row == 0) {
+                $this.children('td').each(function (col) {
+                    debugger;
+
+                    if ($(this).find('img.time').length) {
+                        i_T = col
+                    } else if ($(this).find('img.size').length) {
+                        i_S = col
+                    } else if ($(this).find('img.seeders').length) {
+                        i_N = col
+                    }
+                })
+                if (!i_T || !i_S || !i_N) {
+                    alert('未能找到数据列')
+                    return
                 }
-            })
-            if (!i_T || !i_S || !i_N) {
-                alert('未能找到数据列')
-                return
+                $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
+            } else {
+                var textA = makeA($this, i_T, i_S, i_N)
+                $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
             }
-            $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
-        } else {
-            var textA = makeA($this, i_T, i_S, i_N)
-            $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
+        })
+    }
+
+    function addDataColMTeam(){
+        let i_T, i_S, i_N,addFlag=false
+        debugger;
+
+        let colLen = $('div.mt-4>table>thead>tr>th').length
+        if ($('div.mt-4>table>thead>tr>th:last').text().indexOf('A@A/GB')!=-1){
+            addFlag = true
+            colLen-=1
         }
-    });
+        i_T = colLen - 4
+        i_S = colLen - 3
+        i_N = colLen - 2
+        if (!addFlag){
+            $('div.mt-4>table>thead>tr>th:last').after("<th class=\"border border-solid border-black p-2\" style=\"width: 100px;\" title=\"A值@每GB的A值\"> <div class=\"flex items-center cursor-pointer\"> <div class=\"flex-grow\">A@A/GB</div> </div> </th>");
+        }
+        $(seedTableSelector).each(function (row) {
+            var $this = $(this);
+            var textA = makeA($this, i_T, i_S, i_N)
+            let tdTextA = "<td class=\"border border-solid border-black p-2 \" align=\"center\">"+textA+"</td>"
+            if(addFlag){$this.children("td:last").html(textA)}
+            else{
+                $this.children("td:last").after(tdTextA)
+                //<span class=\"block mx-[-5px]\">"+textA+"</span>
+            }
+        })
+    }
+
+    if(isMTeam){
+        addDataColMTeam()
+    }else{
+        addDataColGeneral()
+    }
 }
 
-run()
+
+function MTteamWaitPageLoadAndRun(){
+    let $ = jQuery
+    let count = 0
+    let tableBlured = false
+    let T0Found = false
+    let seedTableFound = false
+    let itv = setInterval(()=>{
+
+        if(isMybonusPage){
+            T0Found = $("li:has(b:contains('T0'))")[1]
+
+        }
+        if(T0Found || seedTableFound || count >= 100){
+            clearInterval(itv);
+            run()
+        }
+        count++
+    },100);
+
+    let count2 = 0
+    let itvTableBlur = setInterval(()=>{
+        if($('div.ant-spin-blur')[0]||count2>=50){
+            tableBlured = true
+            clearInterval(itvTableBlur)
+        }
+        count2++
+    },100)
+    let count3=0
+    let itvTableUnblur = setInterval(()=>{
+        if(tableBlured&&!$('div.ant-spin-blur')[0]||count3>=100){
+            seedTableFound = $(seedTableSelector)[1]
+            if(seedTableFound||count3>=100){
+                clearInterval(itvTableUnblur)}
+        }
+        count3++
+    },100)
+    }
+let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0]
+let isMTeam = window.location.toString().indexOf("m-team")!=-1
+let seedTableSelector = isMTeam?'div.mt-4>table>tbody>tr':'.torrents:last-of-type>tbody>tr'
+let isMybonusPage = window.location.toString().indexOf("mybonus")!=-1
+if (isMTeam){
+    if(isMybonusPage||window.location.toString().indexOf("browse")!=-1){
+        MTteamWaitPageLoadAndRun()
+    }
+}else{
+    run()
+}
+
+var currentUrl = window.location.href;
+if (window.onurlchange === null) {
+    // feature is supported
+    window.addEventListener('urlchange', (info) => MTteamWaitPageLoadAndRun());
+}
