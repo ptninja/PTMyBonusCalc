@@ -1,0 +1,25 @@
+{
+  "name": "ptmybonuscalc",
+  "version": "1.0.0",
+  "description": "在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。",
+  "main": "UserScript.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ptninja/PTMyBonusCalc.git"
+  },
+  "author": "ptninja",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ptninja/PTMyBonusCalc/issues"
+  },
+  "homepage": "https://github.com/ptninja/PTMyBonusCalc#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "eslint-plugin-userscripts": "^0.5.4",
+    "globals": "^15.9.0"
+  }
+}
