@@ -60,6 +60,10 @@ function calcA(T, S, N) {
     return c1 * S * c2;
 }
 
+function calcB(A, B0, L) {
+    return B0 * (2 / Math.PI) * Math.atan(A / L)
+}
+
 function makeA($this, i_T, i_S, i_N) {
     var time = $this.children('td:eq(' + i_T + ')').find("span").attr("title");
     var T = (new Date().getTime() - new Date(time).getTime()) / 1e3 / 86400 / 7;
@@ -90,47 +94,84 @@ function makeA($this, i_T, i_S, i_N) {
     }
 }
 
-function run() {
-    var $ = jQuery;
-    
+function getSiteSettings() {
     let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
     let myBonusPageUrl = host.includes('m-team') ? "mybonus" : "mybonus.php";
     let isMybonusPage = window.location.toString().indexOf(myBonusPageUrl) != -1;
+    return {
+        host: host,
+        myBonusPageUrl: myBonusPageUrl,
+        isMybonusPage: isMybonusPage,
+    }
+}
+
+function readParams() {
+    const {host, myBonusPageUrl, isMybonusPage} = getSiteSettings();
+
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
     let N0 = GM_getValue(host + ".N0");
     let B0 = GM_getValue(host + ".B0");
     let L = GM_getValue(host + ".L");
-    
+
     if (!(T0 && N0 && B0 && L)) {
         argsReady = false
         if (!isMybonusPage) {
             alert("未找到魔力值参数,请打开魔力值系统说明获取（/mybonus.php）");
         }
     }
+
+    return {
+        argsReady: argsReady,
+        T0: T0,
+        N0: N0,
+        B0: B0,
+        L: L,
+    }
+}
+
+function parseParams(host) {
+    let T0 = parseInt($("li:has(b:contains('T0'))").last()[0].innerText.split(" = ")[1]);
+    let N0 = parseInt($("li:has(b:contains('N0'))").last()[0].innerText.split(" = ")[1]);
+    let B0 = parseInt($("li:has(b:contains('B0'))").last()[0].innerText.split(" = ")[1]);
+    let L = parseInt($("li:has(b:contains('L'))").last()[0].innerText.split(" = ")[1]);
+
+    GM_setValue(host + ".T0", T0);
+    GM_setValue(host + ".N0", N0);
+    GM_setValue(host + ".B0", B0);
+    GM_setValue(host + ".L", L);
+
+    return {
+        T0: T0,
+        N0: N0,
+        B0: B0,
+        L: L,
+    }
+}
+
+function parseA(host, B0, L) {
+    var A = 0;
+    if (!host.includes('m-team')) {
+        A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
+    } else {
+        // m-team does not show A explicitly, parse B and calculate A instead
+        let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
+        let maxUpload = Math.min(numUpload, 14);
+        let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7 * maxUpload;
+        A = calculateAfromB(B, B0, L);
+    }
+    return A;
+}
+
+function run() {
+    var $ = jQuery;
+
+    const {host, myBonusPageUrl, isMybonusPage} = getSiteSettings();
+    var {argsReady, T0, N0, B0, L} = readParams();
+
     if (isMybonusPage) {
-        T0 = parseInt($("li:has(b:contains('T0'))").last()[0].innerText.split(" = ")[1]);
-        N0 = parseInt($("li:has(b:contains('N0'))").last()[0].innerText.split(" = ")[1]);
-        B0 = parseInt($("li:has(b:contains('B0'))").last()[0].innerText.split(" = ")[1]);
-        L = parseInt($("li:has(b:contains('L'))").last()[0].innerText.split(" = ")[1]);
-        
-        GM_setValue(host + ".T0", T0);
-        GM_setValue(host + ".N0", N0);
-        GM_setValue(host + ".B0", B0);
-        GM_setValue(host + ".L", L);
-        
-        var A = 0;
-        if (!host.includes('m-team')) {
-            A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
-        } else {
-            // m-team does not show A explicitly, parse B and calculate A instead
-            let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
-            let maxUpload = Math.min(numUpload, 14);
-            let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7 * maxUpload;
-            A = calculateAfromB(B, B0, L);
-        }
-        console.log(`T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
-        
+        var {T0, N0, B0, L} = parseParams(host);
+
         if (!argsReady) {
             if (T0 && N0 && B0 && L) {
                 alert("魔力值参数已更新")
@@ -138,16 +179,16 @@ function run() {
                 alert("魔力值参数获取失败")
             }
         }
-        
-        function calcB(A) {
-            return B0 * (2 / Math.PI) * Math.atan(A / L)
-        }
-        
+
+        const A = parseA(host, B0, L);
+
+        console.log(`T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
+
         let data = []
         for (let i = 0; i < 25 * L; i = i + L / 4) {
-            data.push([i, calcB(i)])
+            data.push([i, calcB(i, B0, L)])
         }
-        
+
         let main = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
         if ($("table+h1").length) {
             // 大多数情况
@@ -164,9 +205,9 @@ function run() {
             alert("无法找到合适的插入点");
             return 1;
         }
-        
+
         var myChart = echarts.init(document.getElementById('main'));
-        
+
         // 指定图表的配置项和数据
         var option = {
             title: {
@@ -186,7 +227,7 @@ function run() {
                     return obj;
                 },
                 extraCssText: 'width: 170px'
-                
+
             },
             xAxis: {
                 name: 'A',
@@ -207,16 +248,16 @@ function run() {
                 },
                 {
                     type: 'line',
-                    data: [[A, calcB(A)]],
+                    data: [[A, calcB(A, B0, L)]],
                     symbolSize: 6
                 }
             ]
         };
-        
+
         // 使用刚指定的配置项和数据显示图表。
         myChart.setOption(option);
     }
-    
+
     var i_T, i_S, i_N
     $('.torrents:last-of-type>tbody>tr').each(function (row) {
         var $this = $(this);
@@ -246,10 +287,9 @@ window.onload = function () {
     let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
     let isMteam = host.includes('m-team');
     let timeout = isMteam ? 3000 : 0;
-    
+
     // for certain sites, such as Mteam, wait until ajax loads to read the param
     setTimeout(function () {
         run();
     }, timeout); // Adjust the delay (in milliseconds) as needed
 }
-
