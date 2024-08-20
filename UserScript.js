@@ -46,6 +46,8 @@
 // @grant        GM_getValue
 // ==/UserScript==
 
+/* globals echarts */
+
 function calculateAfromB(B, B0, L) {
     return L * Math.tan(B * Math.PI / (2 * B0));
 }
