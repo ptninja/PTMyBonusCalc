@@ -109,20 +109,20 @@ function getSiteSettings() {
 
 function readParams() {
     const {host, isMybonusPage} = getSiteSettings();
-
+    
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
     let N0 = GM_getValue(host + ".N0");
     let B0 = GM_getValue(host + ".B0");
     let L = GM_getValue(host + ".L");
-
+    
     if (!(T0 && N0 && B0 && L)) {
         argsReady = false
         if (!isMybonusPage) {
             alert("未找到魔力值参数,请打开魔力值系统说明获取（/mybonus.php）");
         }
     }
-
+    
     return {
         argsReady: argsReady,
         T0: T0,
@@ -137,12 +137,12 @@ function parseParams(host) {
     let N0 = parseInt($("li:has(b:contains('N0'))").last()[0].innerText.split(" = ")[1]);
     let B0 = parseInt($("li:has(b:contains('B0'))").last()[0].innerText.split(" = ")[1]);
     let L = parseInt($("li:has(b:contains('L'))").last()[0].innerText.split(" = ")[1]);
-
+    
     GM_setValue(host + ".T0", T0);
     GM_setValue(host + ".N0", N0);
     GM_setValue(host + ".B0", B0);
     GM_setValue(host + ".L", L);
-
+    
     return {
         T0: T0,
         N0: N0,
@@ -167,13 +167,13 @@ function parseA(host, B0, L) {
 
 function run() {
     var $ = jQuery;
-
+    
     const {host, isMybonusPage} = getSiteSettings();
     var {argsReady, T0, N0, B0, L} = readParams();
-
+    
     if (isMybonusPage) {
-        let {T0, N0, B0, L} = parseParams(host);
-
+        ({T0, N0, B0, L} = parseParams(host));
+        
         if (!argsReady) {
             if (T0 && N0 && B0 && L) {
                 alert("魔力值参数已更新")
@@ -181,16 +181,16 @@ function run() {
                 alert("魔力值参数获取失败")
             }
         }
-
+        
         const A = parseA(host, B0, L);
-
+        
         console.log(`T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
-
+        
         let data = []
         for (let i = 0; i < 25 * L; i = i + L / 4) {
             data.push([i, calcB(i, B0, L)])
         }
-
+        
         let main = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
         if ($("table+h1").length) {
             // 大多数情况
@@ -207,9 +207,9 @@ function run() {
             alert("无法找到合适的插入点");
             return 1;
         }
-
+        
         var myChart = echarts.init(document.getElementById('main'));
-
+        
         // 指定图表的配置项和数据
         var option = {
             title: {
@@ -229,7 +229,7 @@ function run() {
                     return obj;
                 },
                 extraCssText: 'width: 170px'
-
+                
             },
             xAxis: {
                 name: 'A',
@@ -255,11 +255,11 @@ function run() {
                 }
             ]
         };
-
+        
         // 使用刚指定的配置项和数据显示图表。
         myChart.setOption(option);
     }
-
+    
     var i_T, i_S, i_N
     $('.torrents:last-of-type>tbody>tr').each(function (row) {
         var $this = $(this);
@@ -289,7 +289,7 @@ window.onload = function () {
     let host = window.location.host.match(/\b[^.]+\.[^.]+$/)[0];
     let isMteam = host.includes('m-team');
     let timeout = isMteam ? 3000 : 0;
-
+    
     // for certain sites, such as Mteam, wait until ajax loads to read the param
     setTimeout(function () {
         run();
