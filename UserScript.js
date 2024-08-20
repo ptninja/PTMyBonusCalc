@@ -50,7 +50,7 @@ function calculateAfromB(B, B0, L) {
     return L * Math.tan(B * Math.PI / (2 * B0));
 }
 
-function calcA(T, S, N) {
+function calcA(T, S, N, T0, N0) {
     var c1 = 1 - Math.pow(10, -(T / T0));
     // 当断种时，显示续种后的实际值，因为当前状态值无意义
     N = N ? N : 1;
@@ -64,7 +64,7 @@ function calcB(A, B0, L) {
     return B0 * (2 / Math.PI) * Math.atan(A / L)
 }
 
-function makeA($this, i_T, i_S, i_N) {
+function makeA($this, i_T, i_S, i_N, T0, N0) {
     var time = $this.children('td:eq(' + i_T + ')').find("span").attr("title");
     var T = (new Date().getTime() - new Date(time).getTime()) / 1e3 / 86400 / 7;
     var size = $this.children('td:eq(' + i_S + ')').text().trim();
@@ -84,7 +84,7 @@ function makeA($this, i_T, i_S, i_N) {
     S = parseFloat(S) * size_tp;
     var number = $this.children('td:eq(' + i_N + ')').text().trim();
     var N = parseInt(number);
-    var A = calcA(T, S, N).toFixed(2);
+    var A = calcA(T, S, N, T0, N0).toFixed(2);
     var ave = (A / S).toFixed(2);
     if ((A > S * 2) && (N != 0)) {
         //标红A大于体积2倍且不断种的种子
@@ -95,7 +95,7 @@ function makeA($this, i_T, i_S, i_N) {
 }
 
 function getSiteSettings() {
-    let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
+    let host = window.location.host.match(/\b[^.]+\.[^.]+$/)[0];
     let myBonusPageUrl = host.includes('m-team') ? "mybonus" : "mybonus.php";
     let isMybonusPage = window.location.toString().indexOf(myBonusPageUrl) != -1;
     return {
@@ -106,7 +106,7 @@ function getSiteSettings() {
 }
 
 function readParams() {
-    const {host, myBonusPageUrl, isMybonusPage} = getSiteSettings();
+    const {host, isMybonusPage} = getSiteSettings();
 
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
@@ -166,11 +166,11 @@ function parseA(host, B0, L) {
 function run() {
     var $ = jQuery;
 
-    const {host, myBonusPageUrl, isMybonusPage} = getSiteSettings();
+    const {host, isMybonusPage} = getSiteSettings();
     var {argsReady, T0, N0, B0, L} = readParams();
 
     if (isMybonusPage) {
-        var {T0, N0, B0, L} = parseParams(host);
+        let {T0, N0, B0, L} = parseParams(host);
 
         if (!argsReady) {
             if (T0 && N0 && B0 && L) {
@@ -277,14 +277,14 @@ function run() {
             }
             $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
         } else {
-            var textA = makeA($this, i_T, i_S, i_N)
+            var textA = makeA($this, i_T, i_S, i_N, T0, N0)
             $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
         }
     });
 }
 
 window.onload = function () {
-    let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
+    let host = window.location.host.match(/\b[^.]+\.[^.]+$/)[0];
     let isMteam = host.includes('m-team');
     let timeout = isMteam ? 3000 : 0;
 
