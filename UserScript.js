@@ -47,38 +47,78 @@
 // ==/UserScript==
 
 function calculateAfromB(B, B0, L) {
-    return L*Math.tan(B*Math.PI/(2*B0));
+    return L * Math.tan(B * Math.PI / (2 * B0));
+}
+
+function calcA(T, S, N) {
+    var c1 = 1 - Math.pow(10, -(T / T0));
+    // 当断种时，显示续种后的实际值，因为当前状态值无意义
+    N = N ? N : 1;
+    // 当前状态值，加入做种后实际值会小于当前值
+    // TODO: 改为双行显示为当前值和实际值
+    var c2 = 1 + Math.pow(2, .5) * Math.pow(10, -(N - 1) / (N0 - 1));
+    return c1 * S * c2;
+}
+
+function makeA($this, i_T, i_S, i_N) {
+    var time = $this.children('td:eq(' + i_T + ')').find("span").attr("title");
+    var T = (new Date().getTime() - new Date(time).getTime()) / 1e3 / 86400 / 7;
+    var size = $this.children('td:eq(' + i_S + ')').text().trim();
+    var size_tp = 1;
+    var S = size.replace(/[KMGT]B/, function (tp) {
+        if (tp == "KB") {
+            size_tp = 1 / 1024 / 1024;
+        } else if (tp == "MB") {
+            size_tp = 1 / 1024;
+        } else if (tp == "GB") {
+            size_tp = 1;
+        } else if (tp == "TB") {
+            size_tp = 1024;
+        }
+        return "";
+    });
+    S = parseFloat(S) * size_tp;
+    var number = $this.children('td:eq(' + i_N + ')').text().trim();
+    var N = parseInt(number);
+    var A = calcA(T, S, N).toFixed(2);
+    var ave = (A / S).toFixed(2);
+    if ((A > S * 2) && (N != 0)) {
+        //标红A大于体积2倍且不断种的种子
+        return '<span style="color:#ff0000;font-weight:900;">' + A + '@' + ave + '</span>'
+    } else {
+        return '<span style="">' + A + '@' + ave + "</span>"
+    }
 }
 
 function run() {
     var $ = jQuery;
-
+    
     let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
-    let myBonusPageUrl = host.includes('m-team')? "mybonus" : "mybonus.php";
-    let isMybonusPage = window.location.toString().indexOf(myBonusPageUrl)!=-1;
+    let myBonusPageUrl = host.includes('m-team') ? "mybonus" : "mybonus.php";
+    let isMybonusPage = window.location.toString().indexOf(myBonusPageUrl) != -1;
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
     let N0 = GM_getValue(host + ".N0");
     let B0 = GM_getValue(host + ".B0");
     let L = GM_getValue(host + ".L");
-
-    if(!(T0 && N0 && B0 &&L)){
+    
+    if (!(T0 && N0 && B0 && L)) {
         argsReady = false
-        if(!isMybonusPage){
+        if (!isMybonusPage) {
             alert("未找到魔力值参数,请打开魔力值系统说明获取（/mybonus.php）");
         }
     }
-    if (isMybonusPage){
+    if (isMybonusPage) {
         T0 = parseInt($("li:has(b:contains('T0'))").last()[0].innerText.split(" = ")[1]);
         N0 = parseInt($("li:has(b:contains('N0'))").last()[0].innerText.split(" = ")[1]);
         B0 = parseInt($("li:has(b:contains('B0'))").last()[0].innerText.split(" = ")[1]);
         L = parseInt($("li:has(b:contains('L'))").last()[0].innerText.split(" = ")[1]);
-
-        GM_setValue(host + ".T0",T0);
-        GM_setValue(host + ".N0",N0);
-        GM_setValue(host + ".B0",B0);
-        GM_setValue(host + ".L",L);
-
+        
+        GM_setValue(host + ".T0", T0);
+        GM_setValue(host + ".N0", N0);
+        GM_setValue(host + ".B0", B0);
+        GM_setValue(host + ".L", L);
+        
         var A = 0;
         if (!host.includes('m-team')) {
             A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
@@ -86,28 +126,28 @@ function run() {
             // m-team does not show A explicitly, parse B and calculate A instead
             let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
             let maxUpload = Math.min(numUpload, 14);
-            let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7*maxUpload;
+            let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7 * maxUpload;
             A = calculateAfromB(B, B0, L);
         }
         console.log(`T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
-
-        if (!argsReady){
-            if (T0 && N0 && B0 && L){
+        
+        if (!argsReady) {
+            if (T0 && N0 && B0 && L) {
                 alert("魔力值参数已更新")
             } else {
                 alert("魔力值参数获取失败")
             }
         }
-
-        function calcB(A){
-            return B0*(2/Math.PI)*Math.atan(A/L)
+        
+        function calcB(A) {
+            return B0 * (2 / Math.PI) * Math.atan(A / L)
         }
-
+        
         let data = []
-        for (let i=0; i<25*L; i=i+L/4){
-            data.push([i,calcB(i)])
+        for (let i = 0; i < 25 * L; i = i + L / 4) {
+            data.push([i, calcB(i)])
         }
-
+        
         let main = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
         if ($("table+h1").length) {
             // 大多数情况
@@ -124,9 +164,9 @@ function run() {
             alert("无法找到合适的插入点");
             return 1;
         }
-
+        
         var myChart = echarts.init(document.getElementById('main'));
-
+        
         // 指定图表的配置项和数据
         var option = {
             title: {
@@ -146,7 +186,7 @@ function run() {
                     return obj;
                 },
                 extraCssText: 'width: 170px'
-
+                
             },
             xAxis: {
                 name: 'A',
@@ -167,58 +207,16 @@ function run() {
                 },
                 {
                     type: 'line',
-                    data:[[A,calcB(A)]],
+                    data: [[A, calcB(A)]],
                     symbolSize: 6
                 }
             ]
         };
-
+        
         // 使用刚指定的配置项和数据显示图表。
         myChart.setOption(option);
     }
-
-
-
-    function calcA(T, S, N) {
-        var c1 = 1 - Math.pow(10, -(T / T0));
-        // 当断种时，显示续种后的实际值，因为当前状态值无意义
-        N = N ? N : 1;
-        // 当前状态值，加入做种后实际值会小于当前值
-        // TODO: 改为双行显示为当前值和实际值
-        var c2 = 1 + Math.pow(2, .5) * Math.pow(10, -(N - 1) / (N0 - 1));
-        return c1 * S * c2;
-    }
-
-    function makeA($this, i_T, i_S, i_N) {
-        var time = $this.children('td:eq(' + i_T + ')').find("span").attr("title");
-        var T = (new Date().getTime() - new Date(time).getTime()) / 1e3 / 86400 / 7;
-        var size = $this.children('td:eq(' + i_S + ')').text().trim();
-        var size_tp = 1;
-        var S = size.replace(/[KMGT]B/, function (tp) {
-            if (tp == "KB") {
-                size_tp = 1 / 1024 / 1024;
-            } else if (tp == "MB") {
-                size_tp = 1 / 1024;
-            } else if (tp == "GB") {
-                size_tp = 1;
-            } else if (tp == "TB") {
-                size_tp = 1024;
-            }
-            return "";
-        });
-        S = parseFloat(S) * size_tp;
-        var number = $this.children('td:eq(' + i_N + ')').text().trim();
-        var N = parseInt(number);
-        var A = calcA(T, S, N).toFixed(2);
-        var ave = (A / S).toFixed(2);
-        if ((A > S * 2) && (N != 0)) {
-            //标红A大于体积2倍且不断种的种子
-            return '<span style="color:#ff0000;font-weight:900;">' + A + '@' + ave + '</span>'
-        } else {
-            return '<span style="">' + A + '@' + ave + "</span>"
-        }
-    }
-
+    
     var i_T, i_S, i_N
     $('.torrents:last-of-type>tbody>tr').each(function (row) {
         var $this = $(this);
@@ -244,13 +242,13 @@ function run() {
     });
 }
 
-window.onload = function() {
+window.onload = function () {
     let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
     let isMteam = host.includes('m-team');
-    let timeout = isMteam? 3000 : 0;
-
+    let timeout = isMteam ? 3000 : 0;
+    
     // for certain sites, such as Mteam, wait until ajax loads to read the param
-    setTimeout(function() {
+    setTimeout(function () {
         run();
     }, timeout); // Adjust the delay (in milliseconds) as needed
 }
