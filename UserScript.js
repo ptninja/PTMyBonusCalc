@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         PT站点魔力计算器
+// @name         PT站点魔力计算器 (fork)
 // @namespace    http://tampermonkey.net/
 // @version      2.0.1
 // @description  在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。
@@ -22,7 +22,6 @@
 // @match        *://*.hdhome.org/torrents*
 // @match        *://*.hdsky.me/torrents*
 // @match        *://*.ourbits.club/torrents*
-// @match        *://*.u2.dmhy.org/torrents*
 // @match        *://*.hdzone.me/torrents*
 // @match        *://*.hdatmos.club/torrents*
 // @match        *://*.pt.soulvoice.club/torrents*
@@ -38,22 +37,31 @@
 // @match        *://www.oshen.win/torrents*
 // @match        *://hdmayi.com/torrents*
 // @match        *://pt.msg.vg/torrents*
+// @match        *://*.hdarea.club/torrents*
+// @match        *://*.azusa.wiki/torrents*
+// @match        *://*.carpt.net/torrents*
 // @match        *://*/mybonus.php*
 // @license      GPL License
 // @grant        GM_setValue
 // @grant        GM_getValue
 // ==/UserScript==
 
+function calculateAfromB(B, B0, L) {
+    return L*Math.tan(B*Math.PI/(2*B0));
+}
+
 function run() {
     var $ = jQuery;
 
-    let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0]
-    let isMybonusPage = window.location.toString().indexOf("mybonus.php")!=-1
+    let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
+    let myBonusPageUrl = host.includes('m-team')? "mybonus" : "mybonus.php";
+    let isMybonusPage = window.location.toString().indexOf(myBonusPageUrl)!=-1;
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
     let N0 = GM_getValue(host + ".N0");
     let B0 = GM_getValue(host + ".B0");
     let L = GM_getValue(host + ".L");
+
     if(!(T0 && N0 && B0 &&L)){
         argsReady = false
         if(!isMybonusPage){
@@ -61,22 +69,32 @@ function run() {
         }
     }
     if (isMybonusPage){
-        T0 = parseInt($("li:has(b:contains('T0'))")[1].innerText.split(" = ")[1]);
-        N0 = parseInt($("li:has(b:contains('N0'))")[1].innerText.split(" = ")[1]);
-        B0 = parseInt($("li:has(b:contains('B0'))")[1].innerText.split(" = ")[1]);
-        L = parseInt($("li:has(b:contains('L'))")[1].innerText.split(" = ")[1]);
+        T0 = parseInt($("li:has(b:contains('T0'))").last()[0].innerText.split(" = ")[1]);
+        N0 = parseInt($("li:has(b:contains('N0'))").last()[0].innerText.split(" = ")[1]);
+        B0 = parseInt($("li:has(b:contains('B0'))").last()[0].innerText.split(" = ")[1]);
+        L = parseInt($("li:has(b:contains('L'))").last()[0].innerText.split(" = ")[1]);
 
         GM_setValue(host + ".T0",T0);
         GM_setValue(host + ".N0",N0);
         GM_setValue(host + ".B0",B0);
         GM_setValue(host + ".L",L);
 
-        let A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
+        var A = 0;
+        if (!host.includes('m-team')) {
+            A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
+        } else {
+            // m-team does not show A explicitly, parse B and calculate A instead
+            let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
+            let maxUpload = Math.min(numUpload, 14);
+            let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7*maxUpload;
+            A = calculateAfromB(B, B0, L);
+        }
+        console.log(`T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
 
-        if(!argsReady){
-            if(T0 && N0 && B0 && L){
+        if (!argsReady){
+            if (T0 && N0 && B0 && L){
                 alert("魔力值参数已更新")
-            }else{
+            } else {
                 alert("魔力值参数获取失败")
             }
         }
@@ -90,9 +108,25 @@ function run() {
             data.push([i,calcB(i)])
         }
 
-        $("table+h1").before('<div id="main" style="width: 600px;height:400px; margin:auto;"></div>')
+        let main = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
+        if ($("table+h1").length) {
+            // 大多数情况
+            $("table+h1").before(main);
+        } else if (host.includes('azusa')) {
+            // Azusa
+            $("table:has(td.loadbarbg)").after(main);
+        } else if (host.includes('hares')) {
+            // Hares
+            $("div:has(div.layui-progress)").after(main);
+        } else if (host.includes('m-team')) {
+            $("table.tablist table").before(main);
+        } else {
+            alert("无法找到合适的插入点");
+            return 1;
+        }
 
         var myChart = echarts.init(document.getElementById('main'));
+
         // 指定图表的配置项和数据
         var option = {
             title: {
@@ -210,4 +244,14 @@ function run() {
     });
 }
 
-run()
+window.onload = function() {
+    let host = window.location.host.match(/\b[^\.]+\.[^\.]+$/)[0];
+    let isMteam = host.includes('m-team');
+    let timeout = isMteam? 3000 : 0;
+
+    // for certain sites, such as Mteam, wait until ajax loads to read the param
+    setTimeout(function() {
+        run();
+    }, timeout); // Adjust the delay (in milliseconds) as needed
+}
+
