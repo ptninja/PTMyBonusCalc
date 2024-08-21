@@ -165,6 +165,79 @@ function parseA(host, B0, L) {
     return A;
 }
 
+function getChartOption(A, B0, L, data) {
+    return {
+        title: {
+            text: 'B - A 图',
+            top: 'bottom',
+            left: 'center'
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            },
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            position: function (pos, params, el, elRect, size) {
+                var obj = { top: 10 };
+                obj[['left', 'right'][+(pos[0] < size.viewSize[0] / 2)]] = 30;
+                return obj;
+            },
+            extraCssText: 'width: 170px'
+            
+        },
+        xAxis: {
+            name: 'A',
+        },
+        yAxis: {
+            name: 'B'
+        },
+        axisPointer: {
+            label: {
+                backgroundColor: '#777'
+            }
+        },
+        series: [
+            {
+                type: 'line',
+                data: data,
+                symbol: 'none'
+            },
+            {
+                type: 'line',
+                data: [[A, calcB(A, B0, L)]],
+                symbolSize: 6
+            }
+        ]
+    };
+}
+
+function appendAValue(T0, N0) {
+    var i_T, i_S, i_N;
+    $('.torrents:last-of-type>tbody>tr').each(function (row) {
+        var $this = $(this);
+        if (row == 0) {
+            $this.children('td').each(function (col) {
+                if ($(this).find('img.time').length) {
+                    i_T = col
+                } else if ($(this).find('img.size').length) {
+                    i_S = col
+                } else if ($(this).find('img.seeders').length) {
+                    i_N = col
+                }
+            })
+            if (!i_T || !i_S || !i_N) {
+                alert('未能找到数据列')
+                return
+            }
+            $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
+        } else {
+            var textA = makeA($this, i_T, i_S, i_N, T0, N0)
+            $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
+        }
+    });
+}
+
 function run() {
     var $ = jQuery;
     
@@ -211,78 +284,13 @@ function run() {
         var myChart = echarts.init(document.getElementById('main'));
         
         // 指定图表的配置项和数据
-        var option = {
-            title: {
-                text: 'B - A 图',
-                top: 'bottom',
-                left: 'center'
-            },
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: {
-                    type: 'cross'
-                },
-                backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                position: function (pos, params, el, elRect, size) {
-                    var obj = { top: 10 };
-                    obj[['left', 'right'][+(pos[0] < size.viewSize[0] / 2)]] = 30;
-                    return obj;
-                },
-                extraCssText: 'width: 170px'
-                
-            },
-            xAxis: {
-                name: 'A',
-            },
-            yAxis: {
-                name: 'B'
-            },
-            axisPointer: {
-                label: {
-                    backgroundColor: '#777'
-                }
-            },
-            series: [
-                {
-                    type: 'line',
-                    data: data,
-                    symbol: 'none'
-                },
-                {
-                    type: 'line',
-                    data: [[A, calcB(A, B0, L)]],
-                    symbolSize: 6
-                }
-            ]
-        };
+        var option = getChartOption(A, B0, L, data);
         
         // 使用刚指定的配置项和数据显示图表。
         myChart.setOption(option);
+    } else {
+        appendAValue(T0, N0);
     }
-    
-    var i_T, i_S, i_N
-    $('.torrents:last-of-type>tbody>tr').each(function (row) {
-        var $this = $(this);
-        if (row == 0) {
-            $this.children('td').each(function (col) {
-                if ($(this).find('img.time').length) {
-                    i_T = col
-                } else if ($(this).find('img.size').length) {
-                    i_S = col
-                } else if ($(this).find('img.seeders').length) {
-                    i_N = col
-                }
-            })
-            if (!i_T || !i_S || !i_N) {
-                alert('未能找到数据列')
-                return
-            }
-            $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
-        } else {
-            var textA = makeA($this, i_T, i_S, i_N, T0, N0)
-            $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
-        }
-    });
 }
 
 window.onload = function () {
