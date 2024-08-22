@@ -40,6 +40,7 @@
 // @match        *://*.hdarea.club/torrents*
 // @match        *://*.azusa.wiki/torrents*
 // @match        *://*.carpt.net/torrents*
+// @match        *://*.hhanclub.top/torrents*
 // @match        *://wiki.hhanclub.top/*%E6%86%A8%E8%B1%86%E4%B8%8E%E5%81%9A%E7%A7%8D%E7%A7%AF%E5%88%86
 // @match        *://*/mybonus.php*
 // @license      GPL License
@@ -122,20 +123,20 @@ function getSiteSettings() {
 
 function readParams() {
     const {host, isMybonusPage} = getSiteSettings();
-
+    
     let argsReady = true;
     let T0 = GM_getValue(host + ".T0");
     let N0 = GM_getValue(host + ".N0");
     let B0 = GM_getValue(host + ".B0");
     let L = GM_getValue(host + ".L");
-
+    
     if (!(T0 && N0 && B0 && L)) {
         argsReady = false;
         if (!isMybonusPage) {
             console.log("未找到魔力值参数,请打开魔力值页面获取（/mybonus.php）。HHClub 需要去 wiki");
         }
     }
-
+    
     return {
         argsReady: argsReady,
         T0: T0,
@@ -147,19 +148,19 @@ function readParams() {
 
 function parseParams(host) {
     let bElement = host.includes('hhanclub') ? 'kbd' : 'b';
-
+    
     let T0 = parseInt($(`li:has(${bElement}:contains('T0'))`).last()[0].innerText.split(" = ")[1]);
     let N0 = parseInt($(`li:has(${bElement}:contains('N0'))`).last()[0].innerText.split(" = ")[1]);
     let B0 = parseInt($(`li:has(${bElement}:contains('B0'))`).last()[0].innerText.split(" = ")[1]);
     let L = parseInt($(`li:has(${bElement}:contains('L'))`).last()[0].innerText.split(" = ")[1]);
-
+    
     GM_setValue(host + ".T0", T0);
     GM_setValue(host + ".N0", N0);
     GM_setValue(host + ".B0", B0);
     GM_setValue(host + ".L", L);
-
+    
     console.log(`Parsed: T0=${T0},N0=${N0},B0=${B0},L=${L}`);
-
+    
     return {
         T0: T0,
         N0: N0,
@@ -201,7 +202,7 @@ function getChartOption(A, B0, L, data) {
                 return obj;
             },
             extraCssText: 'width: 170px'
-
+            
         },
         xAxis: {
             name: 'A',
@@ -231,28 +232,59 @@ function getChartOption(A, B0, L, data) {
 
 function appendAValue(T0, N0) {
     var i_T, i_S, i_N;
-    $('.torrents:last-of-type>tbody>tr').each(function (row) {
-        var $this = $(this);
-        if (row == 0) {
-            $this.children('td').each(function (col) {
-                if ($(this).find('img.time').length) {
-                    i_T = col
-                } else if ($(this).find('img.size').length) {
-                    i_S = col
-                } else if ($(this).find('img.seeders').length) {
-                    i_N = col
-                }
-            })
-            if (!i_T || !i_S || !i_N) {
-                alert('未能找到数据列')
-                return
+    let host = getHost();
+    if (host.includes('hhanclub')) {
+        var header = $('div.flex.m-auto:has(div.torrent-cat):not(.torrent-table-for-spider)');
+        header.children().last().before(`
+            <div class="torrent-manage">
+            <span class="!text-[#FFFFFF] text-[16px] font-bold leading-6 hover:!text-orange-400 m-auto">A@A/GB</span>
+            </div>
+        `);
+        header.find('.torrent-info').children().each( function (col) {
+            console.log(col, $(this))
+            if ($(this).find('[alt="time"]').length) {
+                i_T = col;
+            } else if ($(this).find('[alt="size"]').length) {
+                i_S = col;
+            } else if ($(this).find('[alt="seeders"]').length) {
+                i_N = col;
             }
-            $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
-        } else {
-            var textA = makeA($this, i_T, i_S, i_N, T0, N0)
-            $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
+        });
+
+        if (i_T == null || i_S == null || i_N == null) {
+            alert('未能找到数据列');
+            return;
         }
-    });
+
+        // $('.torrent-table-sub-info').each()(function (row){
+        //     var $this = $(this);
+        //     var textA = makeA($this, i_T, i_S, i_N, T0, N0);
+        //     $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
+        // });
+    } else {
+        $('.torrents:last-of-type>tbody>tr').each(function (row) {
+            var $this = $(this);
+            if (row == 0) {
+                $this.children('td').each(function (col) {
+                    if ($(this).find('img.time').length) {
+                        i_T = col
+                    } else if ($(this).find('img.size').length) {
+                        i_S = col
+                    } else if ($(this).find('img.seeders').length) {
+                        i_N = col
+                    }
+                })
+                if (!i_T || !i_S || !i_N) {
+                    alert('未能找到数据列')
+                    return
+                }
+                $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
+            } else {
+                var textA = makeA($this, i_T, i_S, i_N, T0, N0)
+                $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
+            }
+        });
+    }
 }
 
 function drawChart(A, B0, L) {
@@ -261,7 +293,7 @@ function drawChart(A, B0, L) {
     for (let i = 0; i < 25 * L; i = i + L / 4) {
         data.push([i, calcB(i, B0, L)])
     }
-
+    
     let main = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
     if ($("table+h1").length) {
         // 大多数情况
@@ -280,12 +312,12 @@ function drawChart(A, B0, L) {
         alert("无法找到合适的插入点");
         return 1;
     }
-
+    
     var myChart = echarts.init(document.getElementById('main'));
-
+    
     // 指定图表的配置项和数据
     var option = getChartOption(A, B0, L, data);
-
+    
     // 使用刚指定的配置项和数据显示图表。
     myChart.setOption(option);
 }
@@ -294,13 +326,13 @@ function run() {
     const {host, isMybonusPage, isTorrentPage} = getSiteSettings();
     let isHHParamPage = window.location.toString().includes(HHCLUB_PARAM_FLIE_NAME);
     var {argsReady, T0, N0, B0, L} = readParams();
-
+    
     if (isMybonusPage) {
         // Try to update params. For HHClub, the params are in wiki
         if (!host.includes('hhanclub')) {
             ({T0, N0, B0, L} = parseParams(host));
         }
-
+        
         if (!argsReady) {
             if (T0 && N0 && B0 && L) {
                 alert("魔力值参数已更新")
@@ -308,11 +340,11 @@ function run() {
                 alert("魔力值参数获取失败")
             }
         }
-
+        
         const A = parseA(host, B0, L);
-
+        
         console.log(`Params: T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
-
+        
         // Draw the chart
         drawChart(A, B0, L);
     } else if (isHHParamPage) {
@@ -327,7 +359,7 @@ window.onload = function () {
     let host = window.location.host.match(/\b[^.]+\.[^.]+$/)[0];
     let delayRunHosts = ['m-team', 'hhanclub'];
     let timeout = delayRunHosts.some(element => host.includes(element)) ? 3000 : 0;
-
+    
     // for certain sites, such as Mteam, wait until ajax loads to read the param
     setTimeout(function () {
         run();
