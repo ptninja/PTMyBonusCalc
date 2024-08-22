@@ -241,7 +241,6 @@ function appendAValue(T0, N0) {
             </div>
         `);
         header.find('.torrent-info').children().each( function (col) {
-            console.log(col, $(this))
             if ($(this).find('[alt="time"]').length) {
                 i_T = col;
             } else if ($(this).find('[alt="size"]').length) {
@@ -256,11 +255,14 @@ function appendAValue(T0, N0) {
             return;
         }
 
-        // $('.torrent-table-sub-info').each()(function (row){
-        //     var $this = $(this);
-        //     var textA = makeA($this, i_T, i_S, i_N, T0, N0);
-        //     $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
-        // });
+        $('.torrent-table-sub-info').each(function (index){
+            var $this = $(this);
+            var textA = makeA($this, i_T, i_S, i_N, T0, N0);
+            $this.children(".torrent-manage").before(`
+                <div class="torrent-manage">${textA}</td>
+            `);
+        });
+        
     } else {
         $('.torrents:last-of-type>tbody>tr').each(function (row) {
             var $this = $(this);
