@@ -2,8 +2,8 @@
 // @name         PT站点魔力计算器 (fork)
 // @namespace    http://tampermonkey.net/
 // @version      2.0.1
-// @description  在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。
-// @author       neoblackxt, LaneLau
+// @description  在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。基于 neoblackxt, LaneLau 版本。
+// @author       ptninja
 // @require      https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js
 // @require      https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js
 // @match        *://*.avgv.cc/torrents*
