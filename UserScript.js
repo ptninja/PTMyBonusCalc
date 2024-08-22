@@ -274,6 +274,8 @@ function drawChart(A, B0, L) {
         $("div:has(div.layui-progress)").after(main);
     } else if (host.includes('m-team')) {
         $("table.tablist table").before(main);
+    } else if (host.includes('hhanclub')) {
+        $("#bonus-table").closest("div").parent().after(main);
     } else {
         alert("无法找到合适的插入点");
         return 1;
