@@ -75,10 +75,22 @@ function calcB(A, B0, L) {
     }
 }
 
-function makeA($this, i_T, i_S, i_N, T0, N0) {
-    var time = $this.children('td:eq(' + i_T + ')').find("span").attr("title");
-    var T = (new Date().getTime() - new Date(time).getTime()) / 1e3 / 86400 / 7;
-    var size = $this.children('td:eq(' + i_S + ')').text().trim();
+function makeAHtmlElement($this, i_T, i_S, i_N, T0, N0) {
+    const millisecondsInAWeek = 7 * 24 * 60 * 60 * 1000;
+    let host = getHost();
+
+    var timeElapsed, size, seeders;
+    if (host.includes('hhanclub')) {
+        timeElapsed = $this.find('.torrent-info-text.torrent-info-text-added > span').attr('title');
+        size = $this.find('.torrent-info-text.torrent-info-text-size').text().trim();
+        seeders = $this.find('.torrent-info-text.torrent-info-text-seeders').text().trim();
+    } else {
+        timeElapsed = $this.children('td:eq(' + i_T + ')').find("span").attr("title");
+        size = $this.children('td:eq(' + i_S + ')').text().trim();
+        seeders = $this.children('td:eq(' + i_N + ')').text().trim();
+    }
+
+    var T = (new Date().getTime() - new Date(timeElapsed).getTime()) / millisecondsInAWeek;
     var size_tp = 1;
     var S = size.replace(/[KMGT]B/, function (tp) {
         if (tp == "KB") {
@@ -93,8 +105,7 @@ function makeA($this, i_T, i_S, i_N, T0, N0) {
         return "";
     });
     S = parseFloat(S) * size_tp;
-    var number = $this.children('td:eq(' + i_N + ')').text().trim();
-    var N = parseInt(number);
+    var N = parseInt(seeders);
     var A = calcA(T, S, N, T0, N0).toFixed(2);
     var ave = (A / S).toFixed(2);
     if ((A > S * 2) && (N != 0)) {
@@ -255,9 +266,9 @@ function appendAValue(T0, N0) {
             return;
         }
 
-        $('.torrent-table-sub-info').each(function (index){
+        $('.torrent-table-sub-info').each(function (_){
             var $this = $(this);
-            var textA = makeA($this, i_T, i_S, i_N, T0, N0);
+            var textA = makeAHtmlElement($this, i_T, i_S, i_N, T0, N0);
             $this.children(".torrent-manage").before(`
                 <div class="torrent-manage">${textA}</td>
             `);
@@ -282,7 +293,7 @@ function appendAValue(T0, N0) {
                 }
                 $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
             } else {
-                var textA = makeA($this, i_T, i_S, i_N, T0, N0)
+                var textA = makeAHtmlElement($this, i_T, i_S, i_N, T0, N0)
                 $this.children("td:last").before("<td class=\"rowfollow\">" + textA + "</td>");
             }
         });
