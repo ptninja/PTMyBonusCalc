@@ -3,6 +3,16 @@ import pluginJs from "@eslint/js";
 import userscripts from 'eslint-plugin-userscripts';
 
 export default [
+  {
+    rules: {
+      'no-unused-vars': [
+          'error',
+          {
+              argsIgnorePattern: '^_' // Pattern to ignore arguments
+          }
+      ]
+    }
+  },
   {languageOptions: { 
     globals: {
       ...globals.browser ,
