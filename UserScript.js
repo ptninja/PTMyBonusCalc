@@ -120,15 +120,28 @@ function getHost() {
     return window.location.host.match(/\b[^.]+\.[^.]+$/)[0];
 }
 
+// TODO: create dict to return host => config
 function getSiteSettings() {
     let host = getHost();
     let myBonusPageUrl = host.includes('m-team') ? "mybonus" : "mybonus.php";
     let isMybonusPage = window.location.toString().includes(myBonusPageUrl);
     let isTorrentPage = window.location.toString().includes("torrents.php");
+    let isHHParamPage = window.location.toString().includes(HHCLUB_PARAM_FLIE_NAME);
+
+    const PAGE_DELAY = 3000;
+    var timeout = 0;
+    if (isMybonusPage && host.includes('m-team')) {
+        timeout = PAGE_DELAY;
+    } else if (isHHParamPage) {
+        timeout = PAGE_DELAY;
+    }
+
     return {
         host: host,
         isMybonusPage: isMybonusPage,
         isTorrentPage: isTorrentPage,
+        isHHParamPage: isHHParamPage,
+        timeout: timeout,
     }
 }
 
@@ -241,6 +254,7 @@ function getChartOption(A, B0, L, data) {
     };
 }
 
+// TODO: support M-team A column
 function appendAValue(T0, N0) {
     var i_T, i_S, i_N;
     let host = getHost();
@@ -288,7 +302,7 @@ function appendAValue(T0, N0) {
                     }
                 })
                 if (!i_T || !i_S || !i_N) {
-                    alert('未能找到数据列')
+                    alert('未能找到数据列');
                     return
                 }
                 $this.children("td:last").before("<td class=\"colhead\" title=\"A值@每GB的A值\">A@A/GB</td>");
@@ -336,8 +350,7 @@ function drawChart(A, B0, L) {
 }
 
 function run() {
-    const {host, isMybonusPage, isTorrentPage} = getSiteSettings();
-    let isHHParamPage = window.location.toString().includes(HHCLUB_PARAM_FLIE_NAME);
+    const {host, isMybonusPage, isTorrentPage, isHHParamPage} = getSiteSettings();
     var {argsReady, T0, N0, B0, L} = readParams();
     
     if (isMybonusPage) {
@@ -363,15 +376,13 @@ function run() {
     } else if (isHHParamPage) {
         parseParams(host);
     } else if (isTorrentPage) {
-        // torrents page
+        // torrents page - create new column to display A@A/GB value
         appendAValue(T0, N0);
     }
 }
 
 window.onload = function () {
-    let host = window.location.host.match(/\b[^.]+\.[^.]+$/)[0];
-    let delayRunHosts = ['m-team', 'hhanclub'];
-    let timeout = delayRunHosts.some(element => host.includes(element)) ? 3000 : 0;
+    const {timeout} = getSiteSettings();
     
     // for certain sites, such as Mteam, wait until ajax loads to read the param
     setTimeout(function () {
