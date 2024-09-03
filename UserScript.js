@@ -48,7 +48,7 @@
  *
  */
 
-const HHCLUB_PARAM_FLIE_NAME = '%E6%86%A8%E8%B1%86%E4%B8%8E%E5%81%9A%E7%A7%8D%E7%A7%AF%E5%88%86';
+const HHCLUB_PARAM_FLIE_NAME = encodeURIComponent('憨豆与做种积分');
 
 const Sites = Object.freeze({
     HHCLUB: 'hhanclub',
