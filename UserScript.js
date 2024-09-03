@@ -1,21 +1,11 @@
 // ==UserScript==
 // @name         PT站点魔力计算器 (fork)
 // @namespace    http://tampermonkey.net/
-// @version      2.0.1
+// @version      2.1.0
 // @description  在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。基于 neoblackxt, LaneLau 版本。
 // @author       ptninja
 // @require      https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js
 // @require      https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js
-// @match        *://*.avgv.cc/torrents*
-// @match        *://*.avgv.cc/AV*
-// @match        *://*.avgv.cc/GV*
-// @match        *://*.avgv.cc/LES*
-// @match        *://*.avgv.cc/movie*
-// @match        *://*.avgv.cc/teleplay*
-// @match        *://*.beitai.pt/torrents*
-// @match        *://*.pttime.org/torrents*
-// @match        *://*.ptsbao.club/torrents*
-// @match        *://*.pthome.net/torrents*
 // @match        *://kp.m-team.cc/*
 // @match        *://*.hddolby.com/torrents*
 // @match        *://*.leaguehd.com/torrents*
@@ -50,7 +40,27 @@
 
 /* globals echarts */
 
+/*
+ * 2024-09-02
+ *   - Add Audiences support.
+ *      - Regular params are parsed for non-official torrents.
+ *      - Additional params are parsed as official torrents.
+ *
+ */
+
 const HHCLUB_PARAM_FLIE_NAME = '%E6%86%A8%E8%B1%86%E4%B8%8E%E5%81%9A%E7%A7%8D%E7%A7%AF%E5%88%86';
+
+const Sites = Object.freeze({
+    HHCLUB: 'hhanclub',
+    MTEAM: 'm-team',
+    AUDIENCES: 'audiences',
+    HARES: 'hares',
+    AZUSA: 'azusa',
+});
+
+function isSite(host, name) {
+    return host.includes(name);
+}
 
 function calculateAfromB(B, B0, L) {
     return L * Math.tan(B * Math.PI / (2 * B0));
@@ -68,7 +78,7 @@ function calcA(T, S, N, T0, N0) {
 
 function calcB(A, B0, L) {
     let host = getHost();
-    if (host.includes('hhanclub')) {
+    if (isSite(host, Sites.HHCLUB)) {
         return B0 * (2 / Math.PI) * Math.atan(A / L - 5) + 20;
     } else {
         return B0 * (2 / Math.PI) * Math.atan(A / L);
@@ -80,7 +90,7 @@ function makeAHtmlElement($this, i_T, i_S, i_N, T0, N0) {
     let host = getHost();
 
     var timeElapsed, size, seeders;
-    if (host.includes('hhanclub')) {
+    if (isSite(host, Sites.HHCLUB)) {
         timeElapsed = $this.find('.torrent-info-text.torrent-info-text-added > span').attr('title');
         size = $this.find('.torrent-info-text.torrent-info-text-size').text().trim();
         seeders = $this.find('.torrent-info-text.torrent-info-text-seeders').text().trim();
@@ -123,14 +133,14 @@ function getHost() {
 // TODO: create dict to return host => config
 function getSiteSettings() {
     let host = getHost();
-    let myBonusPageUrl = host.includes('m-team') ? "mybonus" : "mybonus.php";
+    let myBonusPageUrl = isSite(host, Sites.MTEAM) ? "mybonus" : "mybonus.php";
     let isMybonusPage = window.location.toString().includes(myBonusPageUrl);
     let isTorrentPage = window.location.toString().includes("torrents.php");
     let isHHParamPage = window.location.toString().includes(HHCLUB_PARAM_FLIE_NAME);
 
     const PAGE_DELAY = 3000;
     var timeout = 0;
-    if (isMybonusPage && host.includes('m-team')) {
+    if (isMybonusPage && isSite(host, Sites.MTEAM)) {
         timeout = PAGE_DELAY;
     } else if (isHHParamPage) {
         timeout = PAGE_DELAY;
@@ -171,11 +181,12 @@ function readParams() {
 }
 
 function parseParams(host) {
-    let bElement = host.includes('hhanclub') ? 'kbd' : 'b';
+    let bElement = isSite(host, Sites.HHCLUB) ? 'kbd' : 'b';
+    let B0_split_delim = isSite(host, Sites.AUDIENCES) ? ', ' : ' = ';
     
     let T0 = parseInt($(`li:has(${bElement}:contains('T0'))`).last()[0].innerText.split(" = ")[1]);
     let N0 = parseInt($(`li:has(${bElement}:contains('N0'))`).last()[0].innerText.split(" = ")[1]);
-    let B0 = parseInt($(`li:has(${bElement}:contains('B0'))`).last()[0].innerText.split(" = ")[1]);
+    let B0 = parseInt($(`li:has(${bElement}:contains('B0'))`).last()[0].innerText.split(B0_split_delim)[1]);
     let L = parseInt($(`li:has(${bElement}:contains('L'))`).last()[0].innerText.split(" = ")[1]);
     
     GM_setValue(host + ".T0", T0);
@@ -193,16 +204,28 @@ function parseParams(host) {
     }
 }
 
+function parseAudiencesB0() {
+    let host = getHost();
+    let texts = $("li:has(b:contains('B0'))").last()[0].innerText.split(' ');
+    let B0_AD = parseInt(texts[texts.length - 2]);
+    GM_setValue(host + ".B0_AD", B0_AD);
+    console.log(`Parsed: B0_AD=${B0_AD}`);
+    return B0_AD;
+}
+
 function parseA(host, B0, L) {
     var A = 0;
-    if (!host.includes('m-team')) {
-        A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
-    } else {
+    if (isSite(host, Sites.MTEAM)) {
         // m-team does not show A explicitly, parse B and calculate A instead
         let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
         let maxUpload = Math.min(numUpload, 14);
         let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7 * maxUpload;
         A = calculateAfromB(B, B0, L);
+    } else if (isSite(host, Sites.AUDIENCES)) {
+        let textA = $("td.text > div").contents()[6].wholeText.trim().split(', ')[0];
+        A = parseFloat(textA.split(' = ')[1])
+    } else {
+        A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
     }
     return A;
 }
@@ -258,7 +281,7 @@ function getChartOption(A, B0, L, data) {
 function appendAValue(T0, N0) {
     var i_T, i_S, i_N;
     let host = getHost();
-    if (host.includes('hhanclub')) {
+    if (isSite(host, Sites.HHCLUB)) {
         var header = $('div.flex.m-auto:has(div.torrent-cat):not(.torrent-table-for-spider)');
         header.children().last().before(`
             <div class="torrent-manage">
@@ -325,15 +348,13 @@ function drawChart(A, B0, L) {
     if ($("table+h1").length) {
         // 大多数情况
         $("table+h1").before(main);
-    } else if (host.includes('azusa')) {
-        // Azusa
+    } else if (isSite(host, Sites.AZUSA)) {
         $("table:has(td.loadbarbg)").after(main);
-    } else if (host.includes('hares')) {
-        // Hares
+    } else if (isSite(host, Sites.HARES)) {
         $("div:has(div.layui-progress)").after(main);
-    } else if (host.includes('m-team')) {
+    } else if (isSite(host, Sites.MTEAM)) {
         $("table.tablist table").before(main);
-    } else if (host.includes('hhanclub')) {
+    } else if (isSite(host, Sites.HHCLUB)) {
         $("#bonus-table").closest("div").parent().after(main);
     } else {
         alert("无法找到合适的插入点");
@@ -355,7 +376,7 @@ function run() {
     
     if (isMybonusPage) {
         // Try to update params. For HHClub, the params are in wiki
-        if (!host.includes('hhanclub')) {
+        if (!isSite(host, Sites.HHCLUB)) {
             ({T0, N0, B0, L} = parseParams(host));
         }
         
