@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PT站点魔力计算器 (fork)
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
+// @version      0.9.0
 // @description  在使用NexusPHP架构的PT站点显示每个种子的A值和每GB的A值。基于 neoblackxt, LaneLau 版本。
 // @author       ptninja
 // @require      https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js
@@ -42,6 +42,10 @@
 
 /*
  * 2024-09-03
+ *   - Enhanced HHClub support
+ *      - Add chart for official torrent
+ *      - Mark as beta release
+ * 2024-09-02
  *   - Add Audiences support.
  *      - Regular params are parsed for non-official torrents.
  *      - Additional params are parsed as official torrents.
