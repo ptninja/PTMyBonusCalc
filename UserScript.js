@@ -41,13 +41,14 @@
 /* globals echarts */
 
 /*
- * 2024-09-02
+ * 2024-09-03
  *   - Add Audiences support.
  *      - Regular params are parsed for non-official torrents.
  *      - Additional params are parsed as official torrents.
  *
  */
 
+const HHCLUB_OFFICIAL_TORRENT_B_SCALER = 4;
 const HHCLUB_PARAM_FLIE_NAME = encodeURIComponent('憨豆与做种积分');
 
 const Sites = Object.freeze({
@@ -233,6 +234,12 @@ function parseA(host) {
     } else {
         A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
     }
+
+    if (isSite(host, Sites.HHCLUB)) {
+        const A_official_text = $("#bonus-table").nextAll("div").find("div:contains('官种加成')").nextAll().eq(2).text();
+        A_official = parseFloat(A_official_text.replaceAll(',', ''));
+    }
+
     return {
         A: A,
         A_official: A_official,
@@ -247,7 +254,7 @@ function getMteamA(B0, L) {
     return calculateAfromB(B, B0, L);
 }
 
-function getChartOption(A, B0, L, data, title='B - A 图') {
+function getChartOption(data, point, title='B - A 图') {
     return {
         title: {
             text: title,
@@ -287,7 +294,7 @@ function getChartOption(A, B0, L, data, title='B - A 图') {
             },
             {
                 type: 'line',
-                data: [[A, calcB(A, B0, L)]],
+                data: [point],
                 symbolSize: 6
             }
         ]
@@ -355,16 +362,23 @@ function appendAValue(T0, N0) {
 }
 
 
-function drawSingleChart(A, B0, L, title='B - A 图', id='main') {
-    let data = []
-    for (let i = 0; i < 25 * L; i = i + L / 4) {
-        data.push([i, calcB(i, B0, L)])
-    }
+function drawSingleChart(A, B0, L, options = {}) {
+    const {
+        B_scaler = 1,
+        title = 'B - A 图',
+        id = 'main',
+    } = options;
 
     var myChart = echarts.init(document.getElementById(`${id}`));
-        
+
+    let data = []
+    for (let i = 0; i < 25 * L; i = i + L / 4) {
+        data.push([i, B_scaler * calcB(i, B0, L)])
+    }
+    const point = [A, B_scaler * calcB(A, B0, L)];
+
     // 指定图表的配置项和数据
-    var option = getChartOption(A, B0, L, data, title);
+    var option = getChartOption(data, point, title);
     
     // 使用刚指定的配置项和数据显示图表。
     myChart.setOption(option); 
@@ -399,7 +413,16 @@ function drawChart(A, B0, L, A_official = null, B0_official = null) {
         let secondDiv = '<div id="second" style="width: 600px;height:400px; margin:auto;"></div>';
         containerElement.prepend(secondDiv);
 
-        drawSingleChart(A_official, B0_official, L, 'B - A 图 (官种)', 'second');
+        drawSingleChart(A_official, B0_official, L, {title: 'B - A 图 (官种)', id: 'second'});
+    }
+
+    if (isSite(host, Sites.HHCLUB)) {
+        let secondDiv = '<div id="second" style="width: 600px;height:400px; margin:auto;"></div>';
+        containerElement.prepend(secondDiv);
+
+        // TODO: currently the scaler is hardcoded, consider parsing it in the page
+        const options = {B_scaler: HHCLUB_OFFICIAL_TORRENT_B_SCALER, title: 'B - A 图 (官种)', id: 'second'};
+        drawSingleChart(A_official, B0, L, options);
     }
 }
 
