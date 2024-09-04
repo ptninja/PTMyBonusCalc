@@ -163,6 +163,7 @@ function readParams() {
     let N0 = GM_getValue(host + ".N0");
     let B0 = GM_getValue(host + ".B0");
     let L = GM_getValue(host + ".L");
+    let B0_official = GM_getValue(host + ".B0_official");
     
     if (!(T0 && N0 && B0 && L)) {
         argsReady = false;
@@ -177,63 +178,79 @@ function readParams() {
         N0: N0,
         B0: B0,
         L: L,
+        B0_official: B0_official,
     }
 }
 
 function parseParams(host) {
-    let bElement = isSite(host, Sites.HHCLUB) ? 'kbd' : 'b';
-    let B0_split_delim = isSite(host, Sites.AUDIENCES) ? ', ' : ' = ';
+    const bElement = isSite(host, Sites.HHCLUB) ? 'kbd' : 'b';
+    const B0_split_delim = isSite(host, Sites.AUDIENCES) ? /[, ]+/ : ' = ';
     
-    let T0 = parseInt($(`li:has(${bElement}:contains('T0'))`).last()[0].innerText.split(" = ")[1]);
-    let N0 = parseInt($(`li:has(${bElement}:contains('N0'))`).last()[0].innerText.split(" = ")[1]);
-    let B0 = parseInt($(`li:has(${bElement}:contains('B0'))`).last()[0].innerText.split(B0_split_delim)[1]);
-    let L = parseInt($(`li:has(${bElement}:contains('L'))`).last()[0].innerText.split(" = ")[1]);
+    const T0 = parseInt($(`li:has(${bElement}:contains('T0'))`).last()[0].innerText.split(" = ")[1]);
+    const N0 = parseInt($(`li:has(${bElement}:contains('N0'))`).last()[0].innerText.split(" = ")[1]);
+    const L = parseInt($(`li:has(${bElement}:contains('L'))`).last()[0].innerText.split(" = ")[1]);
+
+    // For sites such as AD, HH, they use different B0 for regular and official torrents
+    const B_values = $(`li:has(${bElement}:contains('B0'))`).last()[0].innerText.split(B0_split_delim);
+
+    let B0 = null, B0_official = null;
+    if (isSite(host, Sites.AUDIENCES)) {
+        B0_official = parseInt(B_values[3]);
+        B0 = parseInt(B_values[4]);
+    } else {
+        B0 = parseInt(B_values[1]);
+    }
     
     GM_setValue(host + ".T0", T0);
     GM_setValue(host + ".N0", N0);
     GM_setValue(host + ".B0", B0);
     GM_setValue(host + ".L", L);
+
+    if (B0_official !== null) {
+        GM_setValue(host + ".B0_official", B0_official);
+    }
     
-    console.log(`Parsed: T0=${T0},N0=${N0},B0=${B0},L=${L}`);
+    console.log(`Parsed: T0=${T0},N0=${N0},B0=${B0},L=${L},B0_official=${B0_official}`);
     
     return {
         T0: T0,
         N0: N0,
         B0: B0,
         L: L,
+        B0_official: B0_official,
     }
 }
 
-function parseAudiencesB0() {
-    let host = getHost();
-    let texts = $("li:has(b:contains('B0'))").last()[0].innerText.split(' ');
-    let B0_AD = parseInt(texts[texts.length - 2]);
-    GM_setValue(host + ".B0_AD", B0_AD);
-    console.log(`Parsed: B0_AD=${B0_AD}`);
-    return B0_AD;
-}
-
-function parseA(host, B0, L) {
-    var A = 0;
-    if (isSite(host, Sites.MTEAM)) {
-        // m-team does not show A explicitly, parse B and calculate A instead
-        let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
-        let maxUpload = Math.min(numUpload, 14);
-        let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7 * maxUpload;
-        A = calculateAfromB(B, B0, L);
-    } else if (isSite(host, Sites.AUDIENCES)) {
-        let textA = $("td.text > div").contents()[6].wholeText.trim().split(', ')[0];
-        A = parseFloat(textA.split(' = ')[1])
+// By default, parses only one A value
+// For some sites such as AD and HH, it has different B0 and A values for regulary and official torrents
+function parseA(host) {
+    var A, A_official;
+    if (isSite(host, Sites.AUDIENCES)) {
+        let regularA_text = $("td.text > div").contents()[6].wholeText.trim().split(', ')[0];
+        A = parseFloat(regularA_text.split(' = ')[1])
+        let officialA_text = $("td.text > div").contents()[4].wholeText.trim().split(', ')[0];
+        A_official = parseFloat(officialA_text.split(' = ')[1])
     } else {
         A = parseFloat($("div:contains(' (A = ')")[0].innerText.split(" = ")[1]);
     }
-    return A;
+    return {
+        A: A,
+        A_official: A_official,
+    };
 }
 
-function getChartOption(A, B0, L, data) {
+// m-team does not show A explicitly, parse B and reverse calculate A instead
+function getMteamA(B0, L) {
+    let numUpload = parseInt($('span.ant-typography:has(img)')[0].innerText.split(/\s+/)[1]);
+    let maxUpload = Math.min(numUpload, 14);
+    let B = parseFloat($("table.tablist table tr:nth-child(2) td:nth-child(3)")[0].innerText) - 0.7 * maxUpload;
+    return calculateAfromB(B, B0, L);
+}
+
+function getChartOption(A, B0, L, data, title='B - A 图') {
     return {
         title: {
-            text: 'B - A 图',
+            text: title,
             top: 'bottom',
             left: 'center'
         },
@@ -337,47 +354,63 @@ function appendAValue(T0, N0) {
     }
 }
 
-function drawChart(A, B0, L) {
-    let host = getHost();
+
+function drawSingleChart(A, B0, L, title='B - A 图', id='main') {
     let data = []
     for (let i = 0; i < 25 * L; i = i + L / 4) {
         data.push([i, calcB(i, B0, L)])
     }
+
+    var myChart = echarts.init(document.getElementById(`${id}`));
+        
+    // 指定图表的配置项和数据
+    var option = getChartOption(A, B0, L, data, title);
     
-    let main = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
+    // 使用刚指定的配置项和数据显示图表。
+    myChart.setOption(option); 
+}
+
+function drawChart(A, B0, L, A_official = null, B0_official = null) {
+    let host = getHost();
+    
+    let container = '<div id="chart-container"></div>';
     if ($("table+h1").length) {
         // 大多数情况
-        $("table+h1").before(main);
+        $("table+h1").before(container);
     } else if (isSite(host, Sites.AZUSA)) {
-        $("table:has(td.loadbarbg)").after(main);
+        $("table:has(td.loadbarbg)").after(container);
     } else if (isSite(host, Sites.HARES)) {
-        $("div:has(div.layui-progress)").after(main);
+        $("div:has(div.layui-progress)").after(container);
     } else if (isSite(host, Sites.MTEAM)) {
-        $("table.tablist table").before(main);
+        $("table.tablist table").before(container);
     } else if (isSite(host, Sites.HHCLUB)) {
-        $("#bonus-table").closest("div").parent().after(main);
+        $("#bonus-table").closest("div").parent().after(container);
     } else {
         alert("无法找到合适的插入点");
         return 1;
     }
     
-    var myChart = echarts.init(document.getElementById('main'));
-    
-    // 指定图表的配置项和数据
-    var option = getChartOption(A, B0, L, data);
-    
-    // 使用刚指定的配置项和数据显示图表。
-    myChart.setOption(option);
+    let containerElement = $("div#chart-container");
+    let chartDiv = '<div id="main" style="width: 600px;height:400px; margin:auto;"></div>';
+    containerElement.append(chartDiv);
+    drawSingleChart(A, B0, L);
+
+    if (isSite(host, Sites.AUDIENCES)) {
+        let secondDiv = '<div id="second" style="width: 600px;height:400px; margin:auto;"></div>';
+        containerElement.prepend(secondDiv);
+
+        drawSingleChart(A_official, B0_official, L, 'B - A 图 (官种)', 'second');
+    }
 }
 
 function run() {
     const {host, isMybonusPage, isTorrentPage, isHHParamPage} = getSiteSettings();
-    var {argsReady, T0, N0, B0, L} = readParams();
+    var {argsReady, T0, N0, B0, L, B0_official} = readParams();
     
     if (isMybonusPage) {
         // Try to update params. For HHClub, the params are in wiki
         if (!isSite(host, Sites.HHCLUB)) {
-            ({T0, N0, B0, L} = parseParams(host));
+            ({T0, N0, B0, L, B0_official} = parseParams(host));
         }
         
         if (!argsReady) {
@@ -388,12 +421,17 @@ function run() {
             }
         }
         
-        const A = parseA(host, B0, L);
+        var A, A_official;
+        if (isSite(host, Sites.MTEAM)) {
+            A = getMteamA(B0, L);
+        } else {
+            ({A, A_official} = parseA(host));
+        }
         
-        console.log(`Params: T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A}`);
+        console.log(`Params: T0=${T0},N0=${N0},B0=${B0},L=${L},A=${A},A_official=${A_official}`);
         
         // Draw the chart
-        drawChart(A, B0, L);
+        drawChart(A, B0, L, A_official, B0_official);
     } else if (isHHParamPage) {
         parseParams(host);
     } else if (isTorrentPage) {
